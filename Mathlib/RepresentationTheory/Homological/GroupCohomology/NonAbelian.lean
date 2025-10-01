@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Jingting Wang
 -/
 import Mathlib.CategoryTheory.Category.Pointed.Basic
+import Mathlib.CategoryTheory.Action.Basic
 import Mathlib.RepresentationTheory.Homological.GroupCohomology.LowDegree
 
 /-!
@@ -36,7 +37,18 @@ variable (A : NonAbelianRep G)
 
 instance : AddGroup A := inferInstance
 
-instance (A : NonAbelianRep G) : DistribMulAction G A := sorry
+variable (A : NonAbelianRep G)
+
+instance : AddGroup A := inferInstance
+
+instance (A : NonAbelianRep G) : DistribMulAction G A :=
+{
+  smul g a := (A.ρ g).hom a
+  one_smul a := by rw [one_smul]
+  mul_smul (g h : G) (a : A) := by rw [mul_smul]
+  smul_zero (g : G) := (A.ρ g).hom.map_zero
+  smul_add (g : G) (x y : A) := (A.ρ g).hom.map_add x y
+}
 
 end basic
 
