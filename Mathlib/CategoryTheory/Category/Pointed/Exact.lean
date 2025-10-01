@@ -26,9 +26,14 @@ instance : Limits.HasZeroMorphisms Pointed.{u} where
 
 section exact
 
-theorem mono_iff_injective {X Y : Pointed.{u}} (f : X ⟶ Y) : Mono f ↔ Function.Injective f := sorry
+theorem mono_iff_injective {X Y : Pointed.{u}} (f : X ⟶ Y) : Mono f ↔ Function.Injective f := by
+  constructor
+  ·
+    sorry
+  sorry
 
-theorem epi_iff_surjective {X Y : Pointed.{u}} (f : X ⟶ Y) : Epi f ↔ Function.Surjective f := sorry
+theorem epi_iff_surjective {X Y : Pointed.{u}} (f : X ⟶ Y) : Epi f ↔ Function.Surjective f :=
+  sorry
 
 theorem shortComplex_exact_iff (S : ShortComplex Pointed.{u}) :
     S.Exact ↔ ∀ (x : S.X₂), S.g x = S.X₃.point → x ∈ Set.range S.f := sorry
