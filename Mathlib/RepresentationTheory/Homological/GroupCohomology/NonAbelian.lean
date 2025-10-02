@@ -197,7 +197,7 @@ noncomputable def H0Iso : groupCohomology.H0 A ≃+ H0 G A where
   map_add' := sorry
 
 -- should be moved
-def H0Iso_zero : H0Iso A 0 = 0 := sorry
+def H0Iso_zero : H0Iso A 0 = 0 := by simp
 
 variable {B : Rep k G} (f : A ⟶ B)
 variable {A}
