@@ -172,6 +172,7 @@ theorem IsIntegralClosure.isNoetherianRing [IsIntegrallyClosed A] [IsNoetherianR
 /-- If `L` is a finite separable extension of `K = Frac(A)`, where `A` is
 integrally closed and Noetherian, the integral closure `C` of `A` in `L` is
 finite over `A`. -/
+@[stacks 032L]
 theorem IsIntegralClosure.finite [IsIntegrallyClosed A] [IsNoetherianRing A] :
     Module.Finite A C := by
   haveI := IsIntegralClosure.isNoetherian A K L C
