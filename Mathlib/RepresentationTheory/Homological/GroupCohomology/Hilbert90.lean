@@ -7,6 +7,7 @@ module
 
 public import Mathlib.RepresentationTheory.Homological.GroupCohomology.FiniteCyclic
 public import Mathlib.RingTheory.IntegralClosure.IntegralRestrict
+public import Mathlib.LinearAlgebra.Matrix.GeneralLinearGroup.Defs
 
 /-!
 # Hilbert's Theorem 90
@@ -84,6 +85,8 @@ exists `β : Lˣ` such that `g(β)/β = f(g)` for all `g : Aut_K(L).` -/
 theorem isMulCoboundary₁_of_isMulCocycle₁_of_aut_to_units
     (f : Gal(L/K) → Lˣ) (hf : IsMulCocycle₁ f) :
     IsMulCoboundary₁ f := by
+  replace hf := (isMulCocycle₁_iff _).mp hf
+  apply (isMulCoboundary₁_iff _).mpr ?_
 /- Let `z : L` be such that `∑ f(h) * h(z) ≠ 0`, for `h ∈ Aut_K(L)` -/
   obtain ⟨z, hz⟩ : ∃ z, aux f z ≠ 0 :=
     not_forall.1 (fun H => aux_ne_zero f <| funext <| fun x => H x)
@@ -92,13 +95,15 @@ theorem isMulCoboundary₁_of_isMulCocycle₁_of_aut_to_units
   use (Units.mk0 (aux f z) hz)⁻¹
   intro g
 /- Then the equality follows from the hypothesis that `f` is a 1-cocycle. -/
-  simp only [IsMulCocycle₁, AlgEquiv.smul_units_def,
-    map_inv, div_inv_eq_mul, inv_mul_eq_iff_eq_mul, Units.ext_iff, this,
-    Units.val_mul, Units.coe_map, Units.val_mk0, MonoidHom.coe_coe] at hf ⊢
+  simp only [AlgEquiv.smul_units_def, map_inv, div_inv_eq_mul, inv_mul_eq_iff_eq_mul, Units.ext_iff,
+    this, Units.val_mul, Units.coe_map, Units.val_mk0, MonoidHom.coe_coe] at hf ⊢
   simp_rw [map_sum, map_mul, Finset.sum_mul, mul_assoc, mul_comm _ (f _ : L), ← mul_assoc, ← hf g]
   exact eq_comm.1 (Fintype.sum_bijective (fun i => g * i)
     (Group.mulLeft_bijective g) _ _ (fun i => rfl))
 
+-- theorem isMulCoboundary₁_of_isMulCocycle₁_of_aut_to_GL (n : Type*) [DecidableEq n]
+--     [Fintype n] (f : Gal(L/K) → GL n L)
+--     (hf : IsMulCocycle₁ f) : IsMulCoboundary₁ f := sorry
 end
 variable (K L : Type) [Field K] [Field L] [Algebra K L] [FiniteDimensional K L]
 

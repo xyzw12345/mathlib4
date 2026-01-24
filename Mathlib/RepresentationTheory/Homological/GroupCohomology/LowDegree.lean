@@ -472,15 +472,20 @@ section IsCocycle
 
 section
 
-variable {G A : Type*} [Mul G] [AddCommGroup A] [SMul G A]
+variable {G A : Type*} [Mul G]
 
 /-- A function `f : G → A` satisfies the 1-cocycle condition if
 `f(gh) = g • f(h) + f(g)` for all `g, h : G`. -/
-def IsCocycle₁ (f : G → A) : Prop := ∀ g h : G, f (g * h) = g • f h + f g
+def IsCocycle₁ [AddGroup A] [SMul G A] (f : G → A) : Prop := ∀ g h : G, f (g * h) = f g + g • f h
+
+lemma isCocycle₁_iff [AddCommGroup A] [SMul G A] (f : G → A) :
+    IsCocycle₁ f ↔ ∀ g h : G, f (g * h) = g • f h + f g := by
+  simp only [add_comm]
+  rfl
 
 /-- A function `f : G × G → A` satisfies the 2-cocycle condition if
 `f(gh, j) + f(g, h) = g • f(h, j) + f(g, hj)` for all `g, h : G`. -/
-def IsCocycle₂ (f : G × G → A) : Prop :=
+def IsCocycle₂ [AddCommGroup A] [SMul G A] (f : G × G → A) : Prop :=
   ∀ g h j : G, f (g * h, j) + f (g, h) = g • (f (h, j)) + f (g, h * j)
 
 end
@@ -509,7 +514,7 @@ variable {G A : Type*} [Group G] [AddCommGroup A] [MulAction G A]
 
 @[scoped simp] theorem map_inv_of_isCocycle₁ {f : G → A} (hf : IsCocycle₁ f) (g : G) :
     g • f g⁻¹ = -f g := by
-  rw [← add_eq_zero_iff_eq_neg, ← map_one_of_isCocycle₁ hf, ← mul_inv_cancel g, hf g g⁻¹]
+  rw [← add_eq_zero_iff_eq_neg, ← map_one_of_isCocycle₁ hf, ← mul_inv_cancel g, hf g g⁻¹, add_comm]
 
 theorem smul_map_inv_sub_map_inv_of_isCocycle₂ {f : G × G → A} (hf : IsCocycle₂ f) (g : G) :
     g • f (g⁻¹, g) - f (g, g⁻¹) = f (1, 1) - f (g, 1) := by
@@ -523,15 +528,21 @@ end IsCocycle
 
 section IsCoboundary
 
-variable {G A : Type*} [Mul G] [AddCommGroup A] [SMul G A]
+variable {G A : Type*} [Mul G]
 
 /-- A function `f : G → A` satisfies the 1-coboundary condition if there's `x : A` such that
 `g • x - x = f(g)` for all `g : G`. -/
-def IsCoboundary₁ (f : G → A) : Prop := ∃ x : A, ∀ g : G, g • x - x = f g
+def IsCoboundary₁ [AddGroup A] [SMul G A] (f : G → A) : Prop := ∃ x : A, ∀ g : G, -x + g • x = f g
+
+omit [Mul G] in
+lemma isCoboundary₁_iff [AddCommGroup A] [SMul G A] (f : G → A) :
+    IsCoboundary₁ f ↔ ∃ x : A, ∀ g : G, g • x - x = f g := by
+  simp only [sub_eq_add_neg, add_comm (_ • _)]
+  rfl
 
 /-- A function `f : G × G → A` satisfies the 2-coboundary condition if there's `x : G → A` such
 that `g • x(h) - x(gh) + x(g) = f(g, h)` for all `g, h : G`. -/
-def IsCoboundary₂ (f : G × G → A) : Prop :=
+def IsCoboundary₂ [AddCommGroup A] [SMul G A] (f : G × G → A) : Prop :=
   ∃ x : G → A, ∀ g h : G, g • x h - x (g * h) + x g = f (g, h)
 
 end IsCoboundary
@@ -547,11 +558,11 @@ variable {k G A : Type u} [CommRing k] [Group G] [AddCommGroup A] [Module k A]
 @[simps]
 def cocyclesOfIsCocycle₁ {f : G → A} (hf : IsCocycle₁ f) :
     cocycles₁ (Rep.ofDistribMulAction k G A) :=
-  ⟨f, (mem_cocycles₁_iff (A := Rep.ofDistribMulAction k G A) f).2 hf⟩
+  ⟨f, (mem_cocycles₁_iff (A := Rep.ofDistribMulAction k G A) f).2 ((isCocycle₁_iff f).mp hf)⟩
 
 theorem isCocycle₁_of_mem_cocycles₁
     (f : G → A) (hf : f ∈ cocycles₁ (Rep.ofDistribMulAction k G A)) :
-    IsCocycle₁ f :=
+    IsCocycle₁ f := (isCocycle₁_iff f).2
   fun _ _ => (mem_cocycles₁_iff (A := Rep.ofDistribMulAction k G A) f).1 hf _ _
 
 /-- Given a `k`-module `A` with a compatible `DistribMulAction` of `G`, and a function
@@ -560,13 +571,13 @@ on `A` induced by the `DistribMulAction`. -/
 @[simps]
 def coboundariesOfIsCoboundary₁ {f : G → A} (hf : IsCoboundary₁ f) :
     coboundaries₁ (Rep.ofDistribMulAction k G A) :=
-  ⟨f, hf.choose, funext hf.choose_spec⟩
+  ⟨f, ((isCoboundary₁_iff f).mp hf).choose, funext ((isCoboundary₁_iff f).mp hf).choose_spec⟩
 
 theorem isCoboundary₁_of_mem_coboundaries₁
     (f : G → A) (hf : f ∈ coboundaries₁ (Rep.ofDistribMulAction k G A)) :
     IsCoboundary₁ f := by
   rcases hf with ⟨a, rfl⟩
-  exact ⟨a, fun _ => rfl⟩
+  exact (isCoboundary₁_iff _).mpr ⟨a, fun _ => rfl⟩
 
 /-- Given a `k`-module `A` with a compatible `DistribMulAction` of `G`, and a function
 `f : G × G → A` satisfying the 2-cocycle condition, produces a 2-cocycle for the representation on
@@ -604,15 +615,20 @@ section IsMulCocycle
 
 section
 
-variable {G M : Type*} [Mul G] [CommGroup M] [SMul G M]
+variable {G M : Type*} [Mul G]
 
 /-- A function `f : G → M` satisfies the multiplicative 1-cocycle condition if
 `f(gh) = g • f(h) * f(g)` for all `g, h : G`. -/
-def IsMulCocycle₁ (f : G → M) : Prop := ∀ g h : G, f (g * h) = g • f h * f g
+def IsMulCocycle₁ [Group M] [SMul G M] (f : G → M) : Prop := ∀ g h : G, f (g * h) = f g * g • f h
+
+lemma isMulCocycle₁_iff [CommGroup M] [SMul G M] (f : G → M) :
+    IsMulCocycle₁ f ↔ ∀ g h : G, f (g * h) = g • f h * f g := by
+  simp only [mul_comm]
+  rfl
 
 /-- A function `f : G × G → M` satisfies the multiplicative 2-cocycle condition if
 `f(gh, j) * f(g, h) = g • f(h, j) * f(g, hj)` for all `g, h : G`. -/
-def IsMulCocycle₂ (f : G × G → M) : Prop :=
+def IsMulCocycle₂ [CommGroup M] [SMul G M] (f : G × G → M) : Prop :=
   ∀ g h j : G, f (g * h, j) * f (g, h) = g • (f (h, j)) * f (g, h * j)
 
 end
@@ -641,7 +657,8 @@ variable {G M : Type*} [Group G] [CommGroup M] [MulAction G M]
 
 @[scoped simp] theorem map_inv_of_isMulCocycle₁ {f : G → M} (hf : IsMulCocycle₁ f) (g : G) :
     g • f g⁻¹ = (f g)⁻¹ := by
-  rw [← mul_eq_one_iff_eq_inv, ← map_one_of_isMulCocycle₁ hf, ← mul_inv_cancel g, hf g g⁻¹]
+  rw [← mul_eq_one_iff_eq_inv, ← map_one_of_isMulCocycle₁ hf, ← mul_inv_cancel g, hf g g⁻¹,
+  mul_comm]
 
 theorem smul_map_inv_div_map_inv_of_isMulCocycle₂
     {f : G × G → M} (hf : IsMulCocycle₂ f) (g : G) :
@@ -656,15 +673,21 @@ end IsMulCocycle
 
 section IsMulCoboundary
 
-variable {G M : Type*} [Mul G] [CommGroup M] [SMul G M]
+variable {G M : Type*} [Mul G]
 
 /-- A function `f : G → M` satisfies the multiplicative 1-coboundary condition if there's `x : M`
 such that `g • x / x = f(g)` for all `g : G`. -/
-def IsMulCoboundary₁ (f : G → M) : Prop := ∃ x : M, ∀ g : G, g • x / x = f g
+def IsMulCoboundary₁ [Group M] [SMul G M] (f : G → M) : Prop := ∃ x : M, ∀ g : G, x⁻¹ * g • x = f g
+
+omit [Mul G] in
+lemma isMulCoboundary₁_iff [CommGroup M] [SMul G M] (f : G → M) :
+    IsMulCoboundary₁ f ↔ ∃ x : M, ∀ g : G, g • x / x = f g := by
+  simp only [div_eq_mul_inv, mul_comm (_ • _)]
+  rfl
 
 /-- A function `f : G × G → M` satisfies the 2-coboundary condition if there's `x : G → M` such
 that `g • x(h) / x(gh) * x(g) = f(g, h)` for all `g, h : G`. -/
-def IsMulCoboundary₂ (f : G × G → M) : Prop :=
+def IsMulCoboundary₂ [CommGroup M] [SMul G M] (f : G × G → M) : Prop :=
   ∃ x : G → M, ∀ g h : G, g • x h / x (g * h) * x g = f (g, h)
 
 end IsMulCoboundary
@@ -679,11 +702,12 @@ representation on `Additive M` induced by the `MulDistribMulAction`. -/
 @[simps]
 def cocyclesOfIsMulCocycle₁ {f : G → M} (hf : IsMulCocycle₁ f) :
     cocycles₁ (Rep.ofMulDistribMulAction G M) :=
-  ⟨Additive.ofMul ∘ f, (mem_cocycles₁_iff (A := Rep.ofMulDistribMulAction G M) f).2 hf⟩
+  ⟨Additive.ofMul ∘ f, (mem_cocycles₁_iff (A := Rep.ofMulDistribMulAction G M) f).2
+    ((isMulCocycle₁_iff f).mp hf)⟩
 
 theorem isMulCocycle₁_of_mem_cocycles₁
     (f : G → M) (hf : f ∈ cocycles₁ (Rep.ofMulDistribMulAction G M)) :
-    IsMulCocycle₁ (Additive.toMul ∘ f) :=
+    IsMulCocycle₁ (Additive.toMul ∘ f) := (isMulCocycle₁_iff _).mpr <|
   (mem_cocycles₁_iff (A := Rep.ofMulDistribMulAction G M) f).1 hf
 
 /-- Given an abelian group `M` with a `MulDistribMulAction` of `G`, and a function
@@ -692,13 +716,14 @@ theorem isMulCocycle₁_of_mem_cocycles₁
 @[simps]
 def coboundariesOfIsMulCoboundary₁ {f : G → M} (hf : IsMulCoboundary₁ f) :
     coboundaries₁ (Rep.ofMulDistribMulAction G M) :=
-  ⟨Additive.ofMul ∘ f, hf.choose, funext hf.choose_spec⟩
+  ⟨Additive.ofMul ∘ f, ((isMulCoboundary₁_iff f).mp hf).choose,
+    funext ((isMulCoboundary₁_iff f).mp hf).choose_spec⟩
 
 theorem isMulCoboundary₁_of_mem_coboundaries₁
     (f : G → M) (hf : f ∈ coboundaries₁ (Rep.ofMulDistribMulAction G M)) :
     IsMulCoboundary₁ (M := M) (Additive.ofMul ∘ f) := by
   rcases hf with ⟨x, rfl⟩
-  exact ⟨x, fun _ =>  rfl⟩
+  exact (isMulCoboundary₁_iff _).mpr ⟨x, fun _ => rfl⟩
 
 /-- Given an abelian group `M` with a `MulDistribMulAction` of `G`, and a function
 `f : G × G → M` satisfying the multiplicative 2-cocycle condition, produces a 2-cocycle for the
