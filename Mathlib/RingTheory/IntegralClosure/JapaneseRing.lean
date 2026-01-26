@@ -7,6 +7,7 @@ module
 
 public import Mathlib.RingTheory.AdjoinRoot
 public import Mathlib.RingTheory.Localization.FractionRing
+public import Mathlib.RingTheory.Localization.Finiteness
 public import Mathlib.RingTheory.IntegralClosure.Algebra.Basic
 public import Mathlib.RingTheory.RingHom.QuasiFinite
 public import Mathlib.RingTheory.DedekindDomain.IntegralClosure
@@ -68,42 +69,442 @@ lemma IsN2Ring.extension_integralClosure_finite [IsDomain R] [inst : IsN2Ring R]
 
 variable {R} [IsDomain R]
 
-#check IsLocalization.integralClosure
 @[stacks 032G "first part"]
 theorem IsN1Ring.of_isLocalization (M : Submonoid R) (S : Type*) [CommRing S]
     [Algebra R S] [IsLocalization M S] [IsN1Ring R] [IsDomain S] : IsN1Ring S := by
-  refine (isN1Ring_iff S).mpr ?_
-  let R' := integralClosure R K
-  let S' := integralClosure S (FractionRing S)
-  let _ : FaithfulSMul R S := by sorry
-  let _ : Algebra K (FractionRing S) := Ring.instAlgebraFractionRing R S
-  let _ : Algebra R' S' := by
-    unfold R' S'
-    -- apply?
-    sorry
-  have : IsScalarTower R' S' (FractionRing S) := by sorry
-  have : IsScalarTower R R' S' := IsScalarTower.to₁₂₃ R R' S' (FractionRing S)
-  have : IsScalarTower R K (FractionRing S) := FractionRing.instIsScalarTower R (FractionRing S)
-  let _ : IsLocalization (Algebra.algebraMapSubmonoid R' M) S' := by
-    have : IsLocalization (Algebra.algebraMapSubmonoid K M) (FractionRing S) := by
-      sorry
-    exact IsLocalization.integralClosure ..
-  let _ : Module.Finite R R' := IsN1Ring.integralClosure_finite
-  exact Module.Finite.of_isLocalization R R' (Rₚ := S) (Sₚ := S') M
+  classical
+  -- Let `K` be the fraction field of `R`.
+  -- First, construct an `S`-algebra structure on `K` using the universal property of localization.
+  have h0 : (0 : R) ∉ M := by
+    intro h0
+    haveI : Subsingleton S := IsLocalization.subsingleton (S := S) (M := M) h0
+    exact (zero_ne_one (α := S)) (Subsingleton.elim 0 1)
+  have hM : ∀ y : M, IsUnit ((algebraMap R K) (y : R)) := by
+    intro y
+    have hy0 : (y : R) ≠ 0 := by
+      intro hy0
+      exact h0 (by simpa [hy0] using y.2)
+    have : (algebraMap R K (y : R)) ≠ 0 := by
+      intro hy
+      exact hy0 <| (IsFractionRing.injective R K) <| by simpa using hy
+    exact (isUnit_iff_ne_zero).2 this
+  let g : S →+* K := IsLocalization.lift (M := M) (S := S) (g := (algebraMap R K)) hM
+  letI : Algebra S K := g.toAlgebra
+  letI : IsScalarTower R S K :=
+    IsScalarTower.of_algebraMap_eq fun x => by
+      -- `IsLocalization.lift` agrees with `algebraMap` on `R`.
+      change algebraMap R K x = g (algebraMap R S x)
+      simp [g]
+  -- `K` is a localization of `K` at the image of `M`.
+  haveI : IsLocalization (Algebra.algebraMapSubmonoid K M) K := by
+    refine IsLocalization.self ?_
+    rintro x hx
+    rcases hx with ⟨m, hm, rfl⟩
+    exact hM ⟨m, hm⟩
+  -- Define the canonical map between integral closures induced by `R ⊂ S`.
+  let φ : integralClosure R K →+* integralClosure S K :=
+    { toFun := fun x => ⟨(x : K), (IsIntegral.tower_top (A := S) (B := K) x.2)⟩
+      map_one' := by ext; rfl
+      map_mul' := by intro x y; ext; rfl
+      map_zero' := by ext; rfl
+      map_add' := by intro x y; ext; rfl }
+  letI : Algebra (integralClosure R K) (integralClosure S K) := φ.toAlgebra
+  letI : IsScalarTower R (integralClosure R K) (integralClosure S K) :=
+    IsScalarTower.of_algebraMap_eq fun x => by
+      ext; rfl
+  letI : IsScalarTower (integralClosure R K) (integralClosure S K) K :=
+    IsScalarTower.of_algebraMap_eq fun x => by
+      rfl
+  -- Taking integral closure commutes with localization,
+  -- hence we can localize the finiteness result.
+  haveI : IsLocalization (Algebra.algebraMapSubmonoid (integralClosure R K) M)
+    (integralClosure S K) :=
+    IsLocalization.integralClosure (R := R) (S := K) (Rf := S) (Sf := K) M
+  have hfinK : Module.Finite S (integralClosure S K) :=
+    (by
+      letI : Module.Finite R (integralClosure R K) := (IsN1Ring.integralClosure_finite (R := R))
+      exact Module.Finite.of_isLocalization R (integralClosure R K) (M := M))
+  -- Replace `K` by the fraction field of `S`.
+  haveI : IsFractionRing S K :=
+    IsFractionRing.isFractionRing_of_isDomain_of_isLocalization (R := R) (M := M) S K
+  let e : integralClosure S (FractionRing S) ≃ₐ[S] integralClosure S K :=
+    AlgEquiv.mapIntegralClosure (FractionRing.algEquiv (A := S) K)
+  refine ⟨(Module.Finite.equiv_iff e.toLinearEquiv).mpr hfinK⟩
 
-@[stacks 032G "first part"]
+@[stacks 032G "second part"]
 theorem IsN2Ring.of_isLocalization (M : Submonoid R) (S : Type*) [CommRing S]
-    [Algebra R S] [IsLocalization M S] [IsN2Ring R] [IsDomain S] : IsN2Ring S := sorry
+    [Algebra R S] [IsLocalization M S] [IsN2Ring R] [IsDomain S] : IsN2Ring S := by
+  classical
+  -- Let `K` be the fraction field of `R`. We first construct an `S`-algebra structure on `K`.
+  have h0 : (0 : R) ∉ M := by
+    intro h0
+    haveI : Subsingleton S := IsLocalization.subsingleton (S := S) (M := M) h0
+    exact (zero_ne_one (α := S)) (Subsingleton.elim 0 1)
+  have hM : ∀ y : M, IsUnit ((algebraMap R K) (y : R)) := by
+    intro y
+    have hy0 : (y : R) ≠ 0 := by
+      intro hy0
+      exact h0 (by simpa [hy0] using y.2)
+    have : (algebraMap R K (y : R)) ≠ 0 := by
+      intro hy
+      exact hy0 <| (IsFractionRing.injective R K) <| by simpa using hy
+    exact (isUnit_iff_ne_zero).2 this
+  let g : S →+* FractionRing R :=
+    IsLocalization.lift (M := M) (S := S) (g := (algebraMap R (FractionRing R))) hM
+  letI : Algebra S (FractionRing R) := g.toAlgebra
+  letI : IsScalarTower R S (FractionRing R) :=
+    IsScalarTower.of_algebraMap_eq fun x => by
+      change algebraMap R (FractionRing R) x = g (algebraMap R S x)
+      simp [g]
+  haveI : IsLocalization (Algebra.algebraMapSubmonoid (FractionRing R) M) (FractionRing R) := by
+    refine IsLocalization.self ?_
+    rintro x hx
+    rcases hx with ⟨m, hm, rfl⟩
+    exact hM ⟨m, hm⟩
+  haveI : IsFractionRing S (FractionRing R) :=
+    IsFractionRing.isFractionRing_of_isDomain_of_isLocalization (R := R) (M := M) S (FractionRing R)
+  -- Now let `L` be a finite extension of the fraction field of `S`.
+  refine ⟨?_⟩
+  intro L _ _ _ _ _
+  classical
+  -- Use the composed algebra structure `R → S → L`.
+  letI : Algebra R L := ((algebraMap S L).comp (algebraMap R S)).toAlgebra
+  letI : IsScalarTower R S L :=
+    IsScalarTower.of_algebraMap_eq fun x => by simp [RingHom.algebraMap_toAlgebra]
+  -- View `L` as a `K`-algebra via the canonical equivalence `FractionRing S ≃ₐ[S] K`.
+  let e : FractionRing S ≃ₐ[S] FractionRing R := FractionRing.algEquiv (A := S) (FractionRing R)
+  letI : Algebra (FractionRing R) L :=
+    ((algebraMap (FractionRing S) L).comp e.symm.toRingHom).toAlgebra
+  haveI : IsScalarTower R (FractionRing R) L :=
+    IsScalarTower.of_algebraMap_eq fun x => by
+      -- Reduce to the corresponding statement over `S` using the tower `R → S → L`.
+      change algebraMap R L x =
+        (algebraMap (FractionRing S) L) (e.symm (algebraMap R (FractionRing R) x))
+      -- Rewrite `algebraMap R L` through `S` and `FractionRing S`.
+      rw [IsScalarTower.algebraMap_apply R S L]
+      rw [IsScalarTower.algebraMap_apply S (FractionRing S) L]
+      -- Use that `e.symm` commutes with `S`-algebra maps, and `algebraMap R K` factors through `S`.
+      have :
+          e.symm (algebraMap R (FractionRing R) x) =
+            algebraMap S (FractionRing S) (algebraMap R S x) := by
+        -- `algebraMap R (FractionRing R) = algebraMap S (FractionRing R) ∘ algebraMap R S`
+        have hx :
+            algebraMap R (FractionRing R) x =
+              algebraMap S (FractionRing R) (algebraMap R S x) := by
+          simp [IsScalarTower.algebraMap_apply R S (FractionRing R)]
+        -- apply `e.symm` and use commutativity with `S`
+        simp [hx]
+      simp [this]
+  haveI : Module.Finite (FractionRing R) L := by
+    -- Transfer finiteness along the isomorphism `FractionRing S ≃+* K`.
+    refine
+      Module.Finite.of_equiv_equiv (A₁ := FractionRing S) (B₁ := L) (A₂ := FractionRing R)
+        (B₂ := L)
+      e.toRingEquiv (RingEquiv.refl L) ?_
+    ext x
+    simp [RingHom.algebraMap_toAlgebra]
+    simpa using e.toRingEquiv.symm_apply_apply x
+  -- Apply the `N-2` condition on `R` to get finiteness of `integralClosure R L`.
+  have hfinR : Module.Finite R (integralClosure R L) :=
+    IsN2Ring.extension_integralClosure_finite (R := R) (L := L)
+  -- Localize the finiteness statement to get `Module.Finite S (integralClosure S L)`.
+  have hM_L : ∀ y : M, IsUnit ((algebraMap R L) (y : R)) := by
+    intro y
+    -- Elements of `M` map to units in `S`, hence to units in `L`.
+    have : IsUnit ((algebraMap R S) (y : R)) := IsLocalization.map_units (S := S) y
+    have : IsUnit ((algebraMap S L) ((algebraMap R S) (y : R))) := this.map (algebraMap S L)
+    simpa [IsScalarTower.algebraMap_apply R S L] using this
+  haveI : IsLocalization (Algebra.algebraMapSubmonoid L M) L := by
+    refine IsLocalization.self ?_
+    rintro x hx
+    rcases hx with ⟨m, hm, rfl⟩
+    exact hM_L ⟨m, hm⟩
+  -- Define the canonical map between integral closures induced by `R ⊂ S`.
+  let φ : integralClosure R L →+* integralClosure S L :=
+    { toFun := fun x => ⟨(x : L), (IsIntegral.tower_top (A := S) (B := L) x.2)⟩
+      map_one' := by ext; rfl
+      map_mul' := by intro x y; ext; rfl
+      map_zero' := by ext; rfl
+      map_add' := by intro x y; ext; rfl }
+  letI : Algebra (integralClosure R L) (integralClosure S L) := φ.toAlgebra
+  letI : IsScalarTower R (integralClosure R L) (integralClosure S L) :=
+    IsScalarTower.of_algebraMap_eq fun x => by
+      ext; rfl
+  letI : IsScalarTower (integralClosure R L) (integralClosure S L) L :=
+    IsScalarTower.of_algebraMap_eq fun x => by
+      rfl
+  haveI :
+      IsLocalization (Algebra.algebraMapSubmonoid (integralClosure R L) M) (integralClosure S L) :=
+    IsLocalization.integralClosure (R := R) (S := L) (Rf := S) (Sf := L) M
+  letI : Module.Finite R (integralClosure R L) := hfinR
+  exact Module.Finite.of_isLocalization R (integralClosure R L) (M := M)
 
 @[stacks 032H "first part"]
 theorem IsN1Ring.of_localized_span (s : Set R) (spn : Ideal.span s = ⊤)
     (h : ∀ (r : s) (_ : r.1 ≠ 0), @IsN1Ring (Localization.Away r.1) _
-    (Localization.Away.isDomain r.1 ‹_›)) : IsN1Ring R := sorry
+    (Localization.Away.isDomain r.1 ‹_›)) : IsN1Ring R := by
+  classical
+  -- Remove `0` from the spanning set.
+  let s0 : Set R := {r | r ∈ s ∧ r ≠ 0}
+  have spn0 : Ideal.span s0 = ⊤ := by
+    apply top_le_iff.mp
+    have hs : Ideal.span s ≤ Ideal.span s0 := by
+      refine Ideal.span_le.2 ?_
+      intro r hr
+      by_cases hzr : r = 0
+      · simp [hzr]
+      · exact Ideal.subset_span (show r ∈ s0 from ⟨hr, hzr⟩)
+    simpa [spn] using hs
+  -- For each `r ∈ s0`, `Frac(R)` is also the fraction field of `Rᵣ`.
+  have h_unit (r : s0) : IsUnit ((algebraMap R (FractionRing R)) r.1) := by
+    have : (algebraMap R (FractionRing R) r.1) ≠ 0 := by
+      intro h0
+      exact r.2.2 <| (IsFractionRing.injective R (FractionRing R)) (by simpa using h0)
+    exact (isUnit_iff_ne_zero).2 this
+  -- Local data for the localization at `r`.
+  let Rₚ : s0 → Type u := fun r => Localization.Away r.1
+  have hMN (r : s0) : Submonoid.powers r.1 ≤ nonZeroDivisors R :=
+    powers_le_nonZeroDivisors_of_noZeroDivisors r.2.2
+  -- Use the `Algebra`-based scalar action on localizations.
+  letI : SMul R (FractionRing R) := (inferInstance : Algebra R (FractionRing R)).toSMul
+  letI (r : s0) : SMul R (Rₚ r) := (inferInstance : Algebra R (Rₚ r)).toSMul
+  letI (r : s0) : Algebra (Rₚ r) (FractionRing R) :=
+    IsLocalization.localizationAlgebraOfSubmonoidLe (S := Rₚ r) (T := FractionRing R)
+      (Submonoid.powers r.1) (nonZeroDivisors R) (hMN r)
+  haveI (r : s0) : IsScalarTower R (Rₚ r) (FractionRing R) := by
+    simpa using
+      (IsLocalization.localization_isScalarTower_of_submonoid_le (S := Rₚ r) (T := FractionRing R)
+        (Submonoid.powers r.1) (nonZeroDivisors R) (hMN r))
+  haveI (r : s0) : IsDomain (Rₚ r) := Localization.Away.isDomain r.1 r.2.2
+  haveI (r : s0) : IsFractionRing (Rₚ r) (FractionRing R) :=
+    IsFractionRing.isFractionRing_of_isDomain_of_isLocalization
+      (R := R) (M := Submonoid.powers r.1) (Rₚ r) (FractionRing R)
+  haveI (r : s0) :
+      IsLocalization (Algebra.algebraMapSubmonoid (FractionRing R) (Submonoid.powers r.1))
+        (FractionRing R) := by
+    refine IsLocalization.self ?_
+    rintro x hx
+    rcases hx with ⟨m, hm, rfl⟩
+    rcases (Submonoid.mem_powers_iff m r.1).1 hm with ⟨n, hn⟩
+    change IsUnit ((algebraMap R (FractionRing R)) m)
+    have hmap :
+        (algebraMap R (FractionRing R)) r.1 ^ n = (algebraMap R (FractionRing R)) m := by
+      simpa [map_pow] using congrArg (algebraMap R (FractionRing R)) hn
+    exact hmap ▸ (h_unit r).pow n
+  -- The integral closure of `R` in `Frac(R)` is finite if it is finite after localizing at `s0`.
+  refine ⟨?_⟩
+  letI integralClosureAlgebra (r : s0) : Algebra (integralClosure R (FractionRing R))
+      (integralClosure (Rₚ r) (FractionRing R)) := by
+    let φ : integralClosure R (FractionRing R) →+* integralClosure (Rₚ r) (FractionRing R) :=
+      { toFun := fun x => ⟨(x : FractionRing R),
+          (IsIntegral.tower_top (A := Rₚ r) (B := FractionRing R) x.2)⟩
+        map_one' := by ext; rfl
+        map_mul' := by intro x y; ext; rfl
+        map_zero' := by ext; rfl
+        map_add' := by intro x y; ext; rfl }
+    exact φ.toAlgebra
+  haveI (r : s0) : IsScalarTower R (integralClosure R (FractionRing R))
+      (integralClosure (Rₚ r) (FractionRing R)) :=
+    IsScalarTower.of_algebraMap_eq fun x => by
+      ext
+      dsimp [integralClosureAlgebra]
+      rfl
+  haveI (r : s0) :
+      IsScalarTower (integralClosure R (FractionRing R))
+        (integralClosure (Rₚ r) (FractionRing R)) (FractionRing R) :=
+    IsScalarTower.of_algebraMap_eq fun x => by
+      rfl
+  haveI (r : s0) :
+      IsLocalization
+        (Algebra.algebraMapSubmonoid (integralClosure R (FractionRing R)) (Submonoid.powers r.1))
+        (integralClosure (Rₚ r) (FractionRing R)) :=
+    IsLocalization.integralClosure (R := R) (S := FractionRing R) (Rf := Rₚ r) (Sf := FractionRing R)
+      (Submonoid.powers r.1)
+  let f : ∀ r : s0,
+      (integralClosure R (FractionRing R)) →ₗ[R] (integralClosure (Rₚ r) (FractionRing R)) :=
+    fun r =>
+      (IsScalarTower.toAlgHom R (integralClosure R (FractionRing R))
+        (integralClosure (Rₚ r) (FractionRing R))).toLinearMap
+  have H : ∀ r : s0, Module.Finite (Rₚ r) (integralClosure (Rₚ r) (FractionRing R)) := by
+    intro r
+    haveI : IsN1Ring (Rₚ r) := h ⟨r.1, r.2.1⟩ r.2.2
+    let e :
+        integralClosure (Rₚ r) (FractionRing (Rₚ r)) ≃ₐ[Rₚ r]
+          integralClosure (Rₚ r) (FractionRing R) :=
+      AlgEquiv.mapIntegralClosure (FractionRing.algEquiv (A := Rₚ r) (FractionRing R))
+    exact (Module.Finite.equiv_iff e.toLinearEquiv).1 (IsN1Ring.integralClosure_finite (R := Rₚ r))
+  exact
+    Module.Finite.of_localizationSpan' (R := R) (M := (integralClosure R (FractionRing R)))
+      (t := s0) spn0 (Rₚ := Rₚ) (Mₚ := fun r => integralClosure (Rₚ r) (FractionRing R))
+      (f := f) (H := H)
 
 @[stacks 032H "second part"]
 theorem IsN2Ring.of_localized_span (s : Set R) (spn : Ideal.span s = ⊤)
     (h : ∀ (r : s) (_ : r.1 ≠ 0), @IsN2Ring (Localization.Away r.1) _
-    (Localization.Away.isDomain r.1 ‹_›)) : IsN2Ring R := sorry
+    (Localization.Away.isDomain r.1 ‹_›)) : IsN2Ring R := by
+  classical
+  refine ⟨?_⟩
+  intro L _ _ _ _ _
+  classical
+  -- Remove `0` from the spanning set.
+  let s0 : Set R := {r | r ∈ s ∧ r ≠ 0}
+  have spn0 : Ideal.span s0 = ⊤ := by
+    apply top_le_iff.mp
+    have hs : Ideal.span s ≤ Ideal.span s0 := by
+      refine Ideal.span_le.2 ?_
+      intro r hr
+      by_cases hzr : r = 0
+      · simp [hzr]
+      · exact Ideal.subset_span (show r ∈ s0 from ⟨hr, hzr⟩)
+    simpa [spn] using hs
+  -- Local data for the localization at `r`.
+  let Rₚ : s0 → Type u := fun r => Localization.Away r.1
+  have hMN (r : s0) : Submonoid.powers r.1 ≤ nonZeroDivisors R :=
+    powers_le_nonZeroDivisors_of_noZeroDivisors r.2.2
+  -- Use the `Algebra`-based scalar action on localizations.
+  letI : SMul R (FractionRing R) := (inferInstance : Algebra R (FractionRing R)).toSMul
+  letI (r : s0) : SMul R (Rₚ r) := (inferInstance : Algebra R (Rₚ r)).toSMul
+  -- For each `r ∈ s0`, `Frac(R)` is also the fraction field of `Rᵣ`.
+  have h_unit (r : s0) : IsUnit ((algebraMap R (FractionRing R)) r.1) := by
+    have : (algebraMap R (FractionRing R) r.1) ≠ 0 := by
+      intro h0
+      exact r.2.2 <| (IsFractionRing.injective R (FractionRing R)) (by simpa using h0)
+    exact (isUnit_iff_ne_zero).2 this
+  have hM (r : s0) : ∀ y : Submonoid.powers r.1,
+      IsUnit ((algebraMap R (FractionRing R)) (y : R)) := by
+    intro y
+    rcases (Submonoid.mem_powers_iff (y : R) r.1).1 y.2 with ⟨n, hn⟩
+    simpa [hn.symm, map_pow] using (h_unit r).pow n
+  letI (r : s0) : Algebra (Rₚ r) (FractionRing R) :=
+    IsLocalization.localizationAlgebraOfSubmonoidLe (S := Rₚ r) (T := FractionRing R)
+      (Submonoid.powers r.1) (nonZeroDivisors R) (hMN r)
+  haveI (r : s0) : IsScalarTower R (Rₚ r) (FractionRing R) := by
+    simpa using
+      (IsLocalization.localization_isScalarTower_of_submonoid_le (S := Rₚ r) (T := FractionRing R)
+        (Submonoid.powers r.1) (nonZeroDivisors R) (hMN r))
+  haveI (r : s0) : IsDomain (Rₚ r) := Localization.Away.isDomain r.1 r.2.2
+  haveI (r : s0) : IsFractionRing (Rₚ r) (FractionRing R) :=
+    IsFractionRing.isFractionRing_of_isDomain_of_isLocalization
+      (R := R) (M := Submonoid.powers r.1) (Rₚ r) (FractionRing R)
+  haveI (r : s0) :
+      IsLocalization (Algebra.algebraMapSubmonoid (FractionRing R) (Submonoid.powers r.1))
+        (FractionRing R) := by
+    refine IsLocalization.self ?_
+    rintro x hx
+    rcases hx with ⟨m, hm, rfl⟩
+    rcases (Submonoid.mem_powers_iff m r.1).1 hm with ⟨n, hn⟩
+    change IsUnit ((algebraMap R (FractionRing R)) m)
+    have hmap :
+        (algebraMap R (FractionRing R)) r.1 ^ n = (algebraMap R (FractionRing R)) m := by
+      simpa [map_pow] using congrArg (algebraMap R (FractionRing R)) hn
+    exact hmap ▸ (h_unit r).pow n
+  -- Build the algebra structure `Rᵣ → L` through `Frac(R) → L`.
+  letI (r : s0) : Algebra (Rₚ r) L :=
+    ((algebraMap (FractionRing R) L).comp (algebraMap (Rₚ r) (FractionRing R))).toAlgebra
+  haveI (r : s0) : IsScalarTower (Rₚ r) (FractionRing R) L :=
+    IsScalarTower.of_algebraMap_eq fun x => by
+      simp [RingHom.algebraMap_toAlgebra]
+  haveI (r : s0) : IsScalarTower R (Rₚ r) L :=
+    IsScalarTower.of_algebraMap_eq fun x => by
+      -- Compare the two ways of mapping `R` into `L` via `Frac(R)`.
+      rw [IsScalarTower.algebraMap_apply R (FractionRing R) L x]
+      simp [RingHom.algebraMap_toAlgebra]
+  -- Now use the localization-span lemma for `Module.Finite`.
+  haveI (r : s0) :
+      IsLocalization (Algebra.algebraMapSubmonoid L (Submonoid.powers r.1)) L := by
+    refine IsLocalization.self ?_
+    rintro x hx
+    rcases hx with ⟨m, hm, rfl⟩
+    rcases (Submonoid.mem_powers_iff m r.1).1 hm with ⟨n, hn⟩
+    change IsUnit ((algebraMap R L) m)
+    have hmap : (algebraMap R L) r.1 ^ n = (algebraMap R L) m := by
+      simpa [map_pow] using congrArg (algebraMap R L) hn
+    -- `r` maps to a unit in `L` since it maps to a nonzero element.
+    have hr0 : algebraMap R L r.1 ≠ 0 := by
+      intro hr0
+      have : algebraMap R (FractionRing R) r.1 = 0 := by
+        apply (algebraMap (FractionRing R) L).injective
+        simpa [IsScalarTower.algebraMap_apply R (FractionRing R) L] using hr0
+      exact r.2.2 <| (IsFractionRing.injective R (FractionRing R)) (by simpa using this)
+    exact hmap ▸ ((isUnit_iff_ne_zero).2 hr0).pow n
+  letI integralClosureAlgebra (r : s0) : Algebra (integralClosure R L) (integralClosure (Rₚ r) L) := by
+    let φ : integralClosure R L →+* integralClosure (Rₚ r) L :=
+      { toFun := fun x => ⟨(x : L), (IsIntegral.tower_top (A := Rₚ r) (B := L) x.2)⟩
+        map_one' := by ext; rfl
+        map_mul' := by intro x y; ext; rfl
+        map_zero' := by ext; rfl
+        map_add' := by intro x y; ext; rfl }
+    exact φ.toAlgebra
+  haveI (r : s0) : IsScalarTower R (integralClosure R L) (integralClosure (Rₚ r) L) :=
+    IsScalarTower.of_algebraMap_eq fun x => by
+      ext
+      dsimp [integralClosureAlgebra]
+      rfl
+  haveI (r : s0) :
+      IsScalarTower (integralClosure R L) (integralClosure (Rₚ r) L) L :=
+    IsScalarTower.of_algebraMap_eq fun x => by
+      rfl
+  haveI (r : s0) :
+      IsLocalization
+        (Algebra.algebraMapSubmonoid (integralClosure R L) (Submonoid.powers r.1))
+        (integralClosure (Rₚ r) L) :=
+    IsLocalization.integralClosure (R := R) (S := L) (Rf := Rₚ r) (Sf := L)
+      (Submonoid.powers r.1)
+  let f : ∀ r : s0, (integralClosure R L) →ₗ[R] (integralClosure (Rₚ r) L) :=
+    fun r =>
+      (IsScalarTower.toAlgHom R (integralClosure R L) (integralClosure (Rₚ r) L)).toLinearMap
+  have H : ∀ r : s0, Module.Finite (Rₚ r) (integralClosure (Rₚ r) L) := by
+    intro r
+    haveI : IsN2Ring (Rₚ r) := h ⟨r.1, r.2.1⟩ r.2.2
+    -- Transfer finiteness along the identification of fraction fields.
+    let e : FractionRing (Rₚ r) ≃ₐ[Rₚ r] FractionRing R :=
+      FractionRing.algEquiv (A := Rₚ r) (FractionRing R)
+    -- View `L` as an algebra over `Frac(Rᵣ)` through the equivalence.
+    letI : Algebra (FractionRing (Rₚ r)) L :=
+      ((algebraMap (FractionRing R) L).comp e.toRingEquiv.toRingHom).toAlgebra
+    haveI : IsScalarTower (Rₚ r) (FractionRing (Rₚ r)) L :=
+      IsScalarTower.of_algebraMap_eq fun x => by
+        -- Rewrite the two `algebraMap`s coming from the `toAlgebra` instances
+        -- (but keep `algebraMap (Rₚ r) (FractionRing (Rₚ r))` untouched).
+        have h₁ :
+            algebraMap (Rₚ r) L =
+              (algebraMap (FractionRing R) L).comp (algebraMap (Rₚ r) (FractionRing R)) := by
+          simpa using
+            (RingHom.algebraMap_toAlgebra
+              ((algebraMap (FractionRing R) L).comp (algebraMap (Rₚ r) (FractionRing R))))
+        have h₂ :
+            algebraMap (FractionRing (Rₚ r)) L =
+              (algebraMap (FractionRing R) L).comp e.toRingEquiv.toRingHom := by
+          simpa using
+            (RingHom.algebraMap_toAlgebra ((algebraMap (FractionRing R) L).comp e.toRingEquiv.toRingHom))
+        -- Now it is a direct computation using `e.commutes`.
+        -- We keep this as a `simp` step to unfold the compositions.
+        -- (The only nontrivial rewrite is `e.commutes x`.)
+        simp [h₁, h₂, RingHom.comp_apply, e.commutes x]
+    haveI : Module.Finite (FractionRing (Rₚ r)) L := by
+      -- Transfer finiteness from `Frac(R)` along `e`.
+      refine
+        Module.Finite.of_equiv_equiv (A₁ := FractionRing R) (B₁ := L) (A₂ := FractionRing (Rₚ r))
+          (B₂ := L) e.symm.toRingEquiv (RingEquiv.refl L) ?_
+      ext x
+      -- Unfold `algebraMap (FractionRing (Rₚ r)) L` from the `toAlgebra` definition above.
+      have h₂ :
+          algebraMap (FractionRing (Rₚ r)) L =
+            (algebraMap (FractionRing R) L).comp e.toRingEquiv.toRingHom := by
+        simpa using
+          (RingHom.algebraMap_toAlgebra
+            ((algebraMap (FractionRing R) L).comp e.toRingEquiv.toRingHom))
+      -- Then reduce to `e.apply_symm_apply`.
+      simp only [h₂, AlgEquiv.toRingEquiv_eq_coe, RingEquiv.toRingHom_eq_coe,
+        AlgEquiv.toRingEquiv_toRingHom, AlgEquiv.symm_toRingEquiv, RingHom.comp_apply,
+        RingHom.coe_coe, RingEquiv.coe_ringHom_refl, RingHomCompTriple.comp_eq, algebraMap.coe_inj]
+      exact e.toRingEquiv.apply_symm_apply x
+    -- Now apply the `N-2` condition for `Rᵣ`.
+    exact IsN2Ring.extension_integralClosure_finite (R := Rₚ r) (L := L)
+  exact
+    Module.Finite.of_localizationSpan' (R := R) (M := (integralClosure R L))
+      (t := s0) spn0 (Rₚ := Rₚ) (Mₚ := fun r => integralClosure (Rₚ r) L)
+      (f := f) (H := H)
 
 variable (R) [IsNoetherianRing R] (S : Type*) [CommRing S] [IsDomain S] (f : R →+* S)
 
@@ -117,7 +518,68 @@ theorem IsN1Ring.of_polynomial_localize_X [Algebra R S] [Algebra R[X] S] [IsScal
 
 @[stacks 032K "first part"]
 theorem IsN1Ring.of_finite_extension (hf_inj : Function.Injective f)
-    (hf : f.Finite) [IsN1Ring S] : IsN1Ring R := sorry
+    (hf : f.Finite) [IsN1Ring S] : IsN1Ring R := by
+  classical
+  -- Use the `Algebra` structure induced by `f`.
+  letI : Algebra R S := f.toAlgebra
+  haveI : Module.Finite R S := hf
+  -- Work with the fraction fields.
+  let KR := FractionRing R
+  let KS := FractionRing S
+  -- The induced map on fraction fields.
+  let φK : KR →+* KS := IsFractionRing.map (A := R) (B := S) (j := f) hf_inj
+  -- `algebraMap` commutes with `φK` by construction.
+  have hφK : (algebraMap S KS).comp f = φK.comp (algebraMap R KR) := by
+    ext r
+    simp [KR, KS, φK, IsFractionRing.map]
+  -- Use the `R`-algebra structure on `integralClosure S KS` induced by `f`.
+  letI : Algebra R (integralClosure S KS) :=
+    ((algebraMap S (integralClosure S KS)).comp f).toAlgebra
+  letI : IsScalarTower R S (integralClosure S KS) :=
+    IsScalarTower.of_algebraMap_eq fun r => by
+      rfl
+  -- The integral closure of `S` in its fraction field is finite over `R`.
+  haveI : Module.Finite S (integralClosure S KS) := IsN1Ring.integralClosure_finite (R := S)
+  haveI : Module.Finite R (integralClosure S KS) := Module.Finite.trans S (integralClosure S KS)
+  haveI : IsNoetherian R (integralClosure S KS) :=
+    isNoetherian_of_isNoetherianRing_of_finite (R := R) (M := integralClosure S KS)
+  -- Map `integralClosure R (Frac(R))` into `integralClosure S (Frac(S))`.
+  let φ :
+      integralClosure R KR →ₐ[R] integralClosure S KS :=
+    { toFun := fun x =>
+        ⟨φK (x : KR), by
+          rcases x.2 with ⟨p, hp, hpx⟩
+          refine ⟨p.map f, hp.map _, ?_⟩
+          -- Use `map_aeval_eq_aeval_map` to transport the equation `p(x)=0`.
+          have h :=
+            (Polynomial.map_aeval_eq_aeval_map (S := KR) (T := S) (U := KS) (φ := f) (ψ := φK) hφK p
+              (x : KR))
+          have h' :
+              eval₂ (algebraMap S KS) (φK (x : KR)) (p.map f) =
+                φK (eval₂ (algebraMap R KR) (x : KR) p) := by
+            simpa [Polynomial.aeval_def] using h.symm
+          simpa [hpx] using h'⟩
+      map_one' := by ext; simp [φK]
+      map_mul' := by intro x y; ext; simp [φK]
+      map_zero' := by ext; simp [φK]
+      map_add' := by intro x y; ext; simp [φK]
+      commutes' := by
+        intro r
+        ext
+        -- Reduce to `hφK`.
+        simpa [KR, KS, φK, RingHom.algebraMap_toAlgebra] using
+          (congrArg (fun g => g r) hφK).symm }
+  -- `φ` is injective since `φK` is injective.
+  have hφK_inj : Function.Injective φK :=
+    -- Any ring hom from a field is injective.
+    RingHom.injective φK
+  have hφ : Function.Injective φ := by
+    intro x y hxy
+    ext
+    apply hφK_inj
+    simpa [φ] using congrArg (fun z : integralClosure S KS => (z : KS)) hxy
+  -- Conclude finiteness for `integralClosure R (Frac(R))`.
+  refine ⟨Module.Finite.of_injective φ.toLinearMap hφ⟩
 
 @[stacks 032K "second part"]
 theorem IsN2Ring.of_finite_extension (hf_inj : Function.Injective f)
